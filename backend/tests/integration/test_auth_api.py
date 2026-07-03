@@ -14,8 +14,17 @@ from app.models.tenant import Tenant
 class TestAuthAPI:
     """Tests for auth endpoints."""
 
-    async def test_nextauth_bridge_new_user(self, async_client: AsyncClient):
-        """Test NextAuth bridge creates new user and tenant."""
+    async def test_nextauth_bridge_new_user(self, async_client: AsyncClient, monkeypatch):
+        """Test NextAuth bridge creates new user and tenant.
+
+        This test is about the bridge's business logic (user/tenant creation),
+        not the internal-secret guard — that's covered separately by
+        test_nextauth_bridge_rejected_without_secret/_accepts_valid_secret.
+        Explicitly disable the guard here so it doesn't depend on whatever
+        INTERNAL_AUTH_SECRET happens to be set in the local/CI environment.
+        """
+        from app.api import auth as auth_module
+        monkeypatch.setattr(auth_module.settings, "INTERNAL_AUTH_SECRET", "")
         response = await async_client.post(
             "/api/v1/auth/nextauth",
             json={
@@ -32,8 +41,10 @@ class TestAuthAPI:
         assert "tenant" in data
         assert data["tenant"]["name"] == "New User's Workspace"
 
-    async def test_nextauth_bridge_existing_user(self, async_client: AsyncClient, test_user):
+    async def test_nextauth_bridge_existing_user(self, async_client: AsyncClient, test_user, monkeypatch):
         """Test NextAuth bridge returns existing user."""
+        from app.api import auth as auth_module
+        monkeypatch.setattr(auth_module.settings, "INTERNAL_AUTH_SECRET", "")
         response = await async_client.post(
             "/api/v1/auth/nextauth",
             json={
@@ -45,8 +56,10 @@ class TestAuthAPI:
         data = response.json()
         assert data["user"]["email"] == test_user.email
 
-    async def test_nextauth_bridge_missing_email(self, async_client: AsyncClient):
+    async def test_nextauth_bridge_missing_email(self, async_client: AsyncClient, monkeypatch):
         """Test NextAuth bridge fails without email."""
+        from app.api import auth as auth_module
+        monkeypatch.setattr(auth_module.settings, "INTERNAL_AUTH_SECRET", "")
         response = await async_client.post(
             "/api/v1/auth/nextauth",
             json={"name": "Test User"}

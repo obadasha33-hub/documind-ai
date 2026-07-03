@@ -90,10 +90,20 @@ class Settings(BaseSettings):
         """Fail fast if the app is booted in production with insecure defaults."""
         if self.ENVIRONMENT == "production":
             problems: list[str] = []
-            if self.SECRET_KEY == _DEFAULT_SECRET_KEY:
-                problems.append("SECRET_KEY must be set (run `openssl rand -hex 32`)")
-            if not self.INTERNAL_AUTH_SECRET:
-                problems.append("INTERNAL_AUTH_SECRET must be set for the auth bridge")
+            # Reject the known sentinel AND anything too short/low-entropy to be
+            # a real `openssl rand -hex 32` output (64 chars) — a placeholder
+            # like "local-dev-secret-change-in-prod" (31 chars) would otherwise
+            # slip past an exact-match-only check.
+            if self.SECRET_KEY == _DEFAULT_SECRET_KEY or len(self.SECRET_KEY) < 32:
+                problems.append(
+                    "SECRET_KEY must be a real random value, >=32 chars "
+                    "(run `openssl rand -hex 32`)"
+                )
+            if not self.INTERNAL_AUTH_SECRET or len(self.INTERNAL_AUTH_SECRET) < 32:
+                problems.append(
+                    "INTERNAL_AUTH_SECRET must be a real random value, >=32 chars "
+                    "(run `openssl rand -hex 32`)"
+                )
             if self.DEBUG:
                 problems.append("DEBUG must be False in production")
             if problems:
